@@ -69,3 +69,6 @@ Testing/
 .cache/
 
 .vs/
+
+# AI Tools
+.claude

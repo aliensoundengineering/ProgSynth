@@ -90,6 +90,7 @@ void ProgSynthAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     const float* R = buffer.getNumChannels() > 1 ? buffer.getReadPointer(1) : nullptr;
     spectrum.pushStereoBlock(L, R, buffer.getNumSamples());
 
+    engine.applyEffects(buffer);
     engine.applyMaster(buffer);
 }
 

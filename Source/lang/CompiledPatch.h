@@ -58,6 +58,74 @@ struct LfoPatch {
     Expression phase;         // 0..1
 };
 
+// ----- Effect blocks ------------------------------------------------------
+// A block declared in the patch sets `enabled = true`. If the block is
+// absent the FX is bypassed entirely and contributes no CPU cost.
+
+struct ReverbPatch {
+    bool       enabled = false;
+    Expression mix;       // 0..1 wet/dry blend
+    Expression size;      // 0..1 room size
+    Expression damping;   // 0..1 high-frequency damping
+    Expression width;     // 0..1 stereo width
+};
+
+struct DelayPatch {
+    bool       enabled = false;
+    Expression time;      // seconds (overridden by sync if sync=on)
+    SyncRate   syncRate;
+    bool       sync = false;
+    Expression feedback;  // 0..0.99
+    Expression mix;       // 0..1
+};
+
+struct ChorusPatch {
+    bool       enabled = false;
+    Expression rate;          // Hz
+    Expression depth;         // 0..1
+    Expression centreDelay;   // seconds (typical 5..30 ms)
+    Expression feedback;      // -1..+1
+    Expression mix;           // 0..1
+};
+
+struct FlangerPatch {
+    bool       enabled = false;
+    Expression rate;          // Hz (typical 0.05..2 Hz)
+    Expression depth;         // 0..1
+    Expression centreDelay;   // seconds (typical 0.5..7 ms)
+    Expression feedback;      // -1..+1
+    Expression mix;           // 0..1
+};
+
+struct CompressorPatch {
+    bool       enabled = false;
+    Expression threshold;     // linear gain (dB unit accepted, converted at use site)
+    Expression ratio;         // 1..20+, unitless
+    Expression attack;        // seconds
+    Expression release;       // seconds
+    Expression makeup;        // linear gain
+};
+
+enum class DistortionShape { Soft, Hard };
+
+struct DistortionPatch {
+    bool             enabled = false;
+    DistortionShape  shape   = DistortionShape::Soft;
+    Expression       drive;   // linear gain (pre-shaper)
+    Expression       mix;     // 0..1
+};
+
+struct EqPatch {
+    bool       enabled = false;
+    Expression lowFreq;       // Hz
+    Expression lowGain;       // linear gain (dB accepted)
+    Expression midFreq;       // Hz
+    Expression midQ;          // unitless
+    Expression midGain;       // linear gain
+    Expression highFreq;      // Hz
+    Expression highGain;      // linear gain
+};
+
 struct CompiledPatch {
     OscPatch    osc1, osc2, osc3;
     FilterPatch filter;
@@ -65,6 +133,14 @@ struct CompiledPatch {
     EnvPatch    fltEnv;
     LfoPatch    lfo1, lfo2;
     Expression  masterVolume;  // 0..1 linear gain
+
+    ReverbPatch     reverb;
+    DelayPatch      delay;
+    ChorusPatch     chorus;
+    FlangerPatch    flanger;
+    CompressorPatch compressor;
+    DistortionPatch distortion;
+    EqPatch         eq;
 
     // diagnostics
     std::vector<std::string> warnings;

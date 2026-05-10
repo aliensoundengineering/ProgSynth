@@ -60,7 +60,7 @@ A *sync literal* describes a musical note value: an integer numerator, a `/`, an
 1/4t   1/8t            # triplet
 ```
 
-Sync literals are valid **only** as the value of `rate` inside an `lfo1` or `lfo2` block. Anywhere else the compiler reports an error.
+Sync literals are valid **only** as the value of `rate` inside an `lfo1` or `lfo2` block, or as the value of `time` inside a `delay` block. Anywhere else the compiler reports an error.
 
 ### 1.5 Operators and punctuation
 
@@ -114,17 +114,32 @@ A `let` introduces an alias for an expression. References to the alias are resol
 
 ### 2.2 Blocks
 
-| Block name | Purpose                         |
-|------------|---------------------------------|
-| `osc1`     | Oscillator 1                    |
-| `osc2`     | Oscillator 2                    |
-| `osc3`     | Oscillator 3                    |
-| `filter`   | Voice filter                    |
-| `ampEnv`   | Amplitude envelope (ADSR)       |
-| `fltEnv`   | Filter envelope (ADSR)          |
-| `lfo1`     | Low‑frequency oscillator 1      |
-| `lfo2`     | Low‑frequency oscillator 2      |
-| `master`   | Master section                  |
+| Block name   | Purpose                                                |
+|--------------|--------------------------------------------------------|
+| `osc1`       | Oscillator 1                                           |
+| `osc2`       | Oscillator 2                                           |
+| `osc3`       | Oscillator 3                                           |
+| `filter`     | Voice filter                                           |
+| `ampEnv`     | Amplitude envelope (ADSR)                              |
+| `fltEnv`     | Filter envelope (ADSR)                                 |
+| `lfo1`       | Low‑frequency oscillator 1                             |
+| `lfo2`       | Low‑frequency oscillator 2                             |
+| `master`     | Master section                                         |
+| `distortion` | Waveshaping distortion (FX)                            |
+| `eq`         | 3‑band equaliser: low shelf, peak, high shelf (FX)     |
+| `compressor` | Dynamic range compressor (FX)                          |
+| `chorus`     | Chorus (FX)                                            |
+| `flanger`    | Flanger (FX)                                           |
+| `delay`      | Stereo feedback delay, optionally tempo‑synced (FX)    |
+| `reverb`     | Algorithmic reverb (FX)                                |
+
+The seven FX blocks are *optional*: omit them and the signal flows from the synth straight to `master`. Declaring an FX block enables it. The chain order is fixed and runs after the voices are summed and before `master.volume`:
+
+```
+voices → distortion → eq → compressor → chorus → flanger → delay → reverb → master
+```
+
+FX expressions are evaluated *globally* (once per audio block) with all per‑voice inputs (`velocity`, `ampEnv`, `lfo1`, …) read as zero. Use compile‑time constants — referencing per‑voice modulation sources from FX parameters compiles, but those sources contribute nothing here.
 
 Any other block name produces `unknown block 'X'`.
 
@@ -207,6 +222,127 @@ If `rate` is a sync literal, the compiler stores the rational rate in `lfo*.sync
 
 ```
 master { volume = -3dB }
+```
+
+### 3.6 `distortion`
+
+A simple waveshaper. With `shape = soft` the curve is `tanh(drive · x)`; with `shape = hard` the signal is hard‑clipped to `±1` after the drive gain.
+
+| Parameter | Kind        | Description                                                              |
+|-----------|-------------|--------------------------------------------------------------------------|
+| `shape`   | enum        | `soft` (tanh, default) or `hard` (clipper)                               |
+| `drive`   | volume expr | Pre‑shaper gain (linear, accepts `dB`). `0dB` = unity, no distortion.    |
+| `mix`     | level expr  | 0..1 wet/dry blend                                                       |
+
+```
+distortion { shape = soft, drive = 12dB, mix = 0.6 }
+```
+
+### 3.7 `eq`
+
+A static 3‑band EQ: low shelf, peaking mid, high shelf. Each band's `*Gain` is a linear gain, so `0dB` (= `1.0`) bypasses that band.
+
+| Parameter  | Kind            | Description                                          |
+|------------|-----------------|------------------------------------------------------|
+| `lowFreq`  | frequency expr  | Low‑shelf corner, Hz                                 |
+| `lowGain`  | volume expr     | Low‑shelf gain (linear; `dB` accepted)               |
+| `midFreq`  | frequency expr  | Peaking band centre, Hz                              |
+| `midQ`     | level expr      | Peaking band Q (unitless, typical 0.3..3)            |
+| `midGain`  | volume expr     | Peaking band gain                                    |
+| `highFreq` | frequency expr  | High‑shelf corner, Hz                                |
+| `highGain` | volume expr     | High‑shelf gain                                      |
+
+```
+eq {
+    lowFreq = 120Hz, lowGain  = +3dB,
+    midFreq = 1.5kHz, midQ    = 0.8, midGain = -2dB,
+    highFreq = 6kHz, highGain = +2dB
+}
+```
+
+### 3.8 `compressor`
+
+Feed‑forward broadband compressor. `threshold` is written as a level/dB literal (e.g. `-12dB`); the engine converts to dB internally.
+
+| Parameter   | Kind        | Description                                          |
+|-------------|-------------|------------------------------------------------------|
+| `threshold` | volume expr | Threshold (linear, `dB` accepted)                    |
+| `ratio`     | level expr  | Compression ratio (≥ 1; clamped at 1)                |
+| `attack`    | time expr   | Attack time                                          |
+| `release`   | time expr   | Release time                                         |
+| `makeup`    | volume expr | Output make‑up gain (linear, `dB` accepted)          |
+
+```
+compressor {
+    threshold = -18dB,
+    ratio     = 4,
+    attack    = 5ms,
+    release   = 120ms,
+    makeup    = +3dB
+}
+```
+
+### 3.9 `chorus`
+
+| Parameter     | Kind            | Description                                            |
+|---------------|-----------------|--------------------------------------------------------|
+| `rate`        | frequency expr  | LFO rate, Hz                                           |
+| `depth`       | level expr      | 0..1 modulation depth                                  |
+| `centreDelay` | time expr       | Centre delay (typical 5..30 ms)                        |
+| `feedback`    | signed level    | -1..+1                                                 |
+| `mix`         | level expr      | 0..1 wet/dry blend                                     |
+
+```
+chorus { rate = 0.8Hz, depth = 0.3, centreDelay = 7ms, feedback = 0.1, mix = 0.5 }
+```
+
+### 3.10 `flanger`
+
+Same DSP shape as `chorus` but tuned for shorter delays and stronger feedback. The compiler clamps `centreDelay` to ≤ 20 ms at runtime.
+
+| Parameter     | Kind            | Description                                            |
+|---------------|-----------------|--------------------------------------------------------|
+| `rate`        | frequency expr  | LFO rate, Hz (typical 0.05..2 Hz)                      |
+| `depth`       | level expr      | 0..1 modulation depth                                  |
+| `centreDelay` | time expr       | Centre delay (typical 0.5..7 ms)                       |
+| `feedback`    | signed level    | -1..+1                                                 |
+| `mix`         | level expr      | 0..1 wet/dry blend                                     |
+
+```
+flanger { rate = 0.3Hz, depth = 0.7, centreDelay = 2ms, feedback = 0.6, mix = 0.5 }
+```
+
+### 3.11 `delay`
+
+Stereo feedback delay. `time` accepts either a time literal *or* a sync literal (e.g. `1/8`); when a sync literal is used, `sync = on` makes the engine recompute the delay length from host BPM each block.
+
+| Parameter  | Kind                      | Description                                          |
+|------------|---------------------------|------------------------------------------------------|
+| `time`     | time expr **or** sync     | Delay length, seconds (or sync literal)              |
+| `sync`     | enum                      | `on` / `off` (whether to honour the sync literal)    |
+| `feedback` | level expr                | 0..0.95 (clamped)                                    |
+| `mix`      | level expr                | 0..1 wet/dry blend                                   |
+
+```
+delay { time = 1/8, sync = on, feedback = 0.45, mix = 0.3 }
+delay { time = 380ms,         feedback = 0.5,  mix = 0.25 }
+```
+
+Maximum delay length is 4 seconds; longer values are clamped.
+
+### 3.12 `reverb`
+
+Algorithmic reverb (the JUCE `Reverb` algorithm).
+
+| Parameter | Kind        | Description                                          |
+|-----------|-------------|------------------------------------------------------|
+| `mix`     | level expr  | 0..1 wet/dry blend                                   |
+| `size`    | level expr  | 0..1 room size                                       |
+| `damping` | level expr  | 0..1 high‑frequency damping                          |
+| `width`   | level expr  | 0..1 stereo width                                    |
+
+```
+reverb { mix = 0.25, size = 0.7, damping = 0.4, width = 1.0 }
 ```
 
 ---
@@ -322,7 +458,21 @@ lfo2   { wave = sine, rate = 1Hz, sync = off, retrigger = on, phase = 0 }
 master { volume = -6dB }
 ```
 
-A completely empty source is a valid program — it produces a default sawtooth synth at -6 dB.
+The seven FX blocks are *off* by default — declaring the block enables it. Once enabled, omitted parameters take the values below:
+
+```
+distortion { shape = soft, drive = 0dB, mix = 1.0 }
+eq         { lowFreq = 200Hz,  lowGain  = 0dB,
+             midFreq = 1kHz,   midQ     = 0.7, midGain = 0dB,
+             highFreq = 4kHz,  highGain = 0dB }
+compressor { threshold = -12dB, ratio = 4, attack = 5ms, release = 100ms, makeup = 0dB }
+chorus     { rate = 1Hz,   depth = 0.25, centreDelay = 7ms, feedback = 0,   mix = 0.5 }
+flanger    { rate = 0.5Hz, depth = 0.6,  centreDelay = 2ms, feedback = 0.5, mix = 0.5 }
+delay      { time = 250ms, sync = off, feedback = 0.4, mix = 0.3 }
+reverb     { mix = 0.3, size = 0.5, damping = 0.5, width = 1.0 }
+```
+
+A completely empty source is a valid program — it produces a default sawtooth synth at -6 dB with no effects.
 
 ---
 

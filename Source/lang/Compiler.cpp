@@ -191,7 +191,7 @@ void emit(const Expr& e, Expression& out, ParamKind kind, Ctx& ctx) {
         }
         case ExprKind::Sync: {
             err(ctx, "sync rate literal is only valid as the value of `rate=` "
-                     "in an LFO block", e.line, e.col);
+                     "in an LFO block (or `time=` in a delay block)", e.line, e.col);
             // emit 0 so VM stack stays consistent
             out.constants.push_back(0.0);
             Op op; op.code = Op::Code::PushConst;
@@ -435,6 +435,160 @@ void compileLfoBlock(const Block& b, LfoPatch& lfo, const std::string& name,
     }
 }
 
+bool readDistortionShape(const Expr& e, DistortionShape& out, Ctx& ctx) {
+    if (e.kind != ExprKind::Identifier) {
+        err(ctx, "expected distortion shape ('soft' or 'hard')", e.line, e.col);
+        return false;
+    }
+    if      (e.name == "soft") out = DistortionShape::Soft;
+    else if (e.name == "hard") out = DistortionShape::Hard;
+    else {
+        err(ctx, "expected distortion shape ('soft' or 'hard'), got '" +
+                 e.name + "'", e.line, e.col);
+        return false;
+    }
+    return true;
+}
+
+void compileReverbBlock(const Block& b, CompiledPatch& patch, Ctx& ctx) {
+    auto& fx = patch.reverb;
+    fx.enabled = true;
+    for (const auto& a : b.assignments) {
+        if (!a.value) continue;
+        if      (a.name == "mix")     { fx.mix     = compileExpr(*a.value, ParamKind::Level, ctx);
+                                        recordRoutings(fx.mix,     "reverb.mix",     patch); }
+        else if (a.name == "size")    { fx.size    = compileExpr(*a.value, ParamKind::Level, ctx);
+                                        recordRoutings(fx.size,    "reverb.size",    patch); }
+        else if (a.name == "damping") { fx.damping = compileExpr(*a.value, ParamKind::Level, ctx);
+                                        recordRoutings(fx.damping, "reverb.damping", patch); }
+        else if (a.name == "width")   { fx.width   = compileExpr(*a.value, ParamKind::Level, ctx);
+                                        recordRoutings(fx.width,   "reverb.width",   patch); }
+        else err(ctx, "unknown parameter '" + a.name + "' in reverb", a.line, a.col);
+    }
+}
+
+void compileDelayBlock(const Block& b, CompiledPatch& patch, Ctx& ctx) {
+    auto& fx = patch.delay;
+    fx.enabled = true;
+    for (const auto& a : b.assignments) {
+        if (!a.value) continue;
+        if (a.name == "time") {
+            if (a.value->kind == ExprKind::Sync) {
+                fx.syncRate.num     = a.value->syncNum;
+                fx.syncRate.den     = a.value->syncDen;
+                fx.syncRate.dotted  = a.value->syncDotted;
+                fx.syncRate.triplet = a.value->syncTriplet;
+                fx.syncRate.valid   = true;
+                fx.time.isConstant    = true;
+                fx.time.constantValue = 0.25;   // safe fallback (s)
+            } else {
+                fx.time = compileExpr(*a.value, ParamKind::Time, ctx);
+                recordRoutings(fx.time, "delay.time", patch);
+            }
+        }
+        else if (a.name == "sync")     readOnOff(*a.value, fx.sync, ctx);
+        else if (a.name == "feedback") { fx.feedback = compileExpr(*a.value, ParamKind::Level, ctx);
+                                         recordRoutings(fx.feedback, "delay.feedback", patch); }
+        else if (a.name == "mix")      { fx.mix      = compileExpr(*a.value, ParamKind::Level, ctx);
+                                         recordRoutings(fx.mix,      "delay.mix",      patch); }
+        else err(ctx, "unknown parameter '" + a.name + "' in delay", a.line, a.col);
+    }
+}
+
+void compileChorusBlock(const Block& b, CompiledPatch& patch, Ctx& ctx) {
+    auto& fx = patch.chorus;
+    fx.enabled = true;
+    for (const auto& a : b.assignments) {
+        if (!a.value) continue;
+        if      (a.name == "rate")        { fx.rate        = compileExpr(*a.value, ParamKind::Frequency,   ctx);
+                                            recordRoutings(fx.rate,        "chorus.rate",        patch); }
+        else if (a.name == "depth")       { fx.depth       = compileExpr(*a.value, ParamKind::Level,       ctx);
+                                            recordRoutings(fx.depth,       "chorus.depth",       patch); }
+        else if (a.name == "centreDelay") { fx.centreDelay = compileExpr(*a.value, ParamKind::Time,        ctx);
+                                            recordRoutings(fx.centreDelay, "chorus.centreDelay", patch); }
+        else if (a.name == "feedback")    { fx.feedback    = compileExpr(*a.value, ParamKind::SignedLevel, ctx);
+                                            recordRoutings(fx.feedback,    "chorus.feedback",    patch); }
+        else if (a.name == "mix")         { fx.mix         = compileExpr(*a.value, ParamKind::Level,       ctx);
+                                            recordRoutings(fx.mix,         "chorus.mix",         patch); }
+        else err(ctx, "unknown parameter '" + a.name + "' in chorus", a.line, a.col);
+    }
+}
+
+void compileFlangerBlock(const Block& b, CompiledPatch& patch, Ctx& ctx) {
+    auto& fx = patch.flanger;
+    fx.enabled = true;
+    for (const auto& a : b.assignments) {
+        if (!a.value) continue;
+        if      (a.name == "rate")        { fx.rate        = compileExpr(*a.value, ParamKind::Frequency,   ctx);
+                                            recordRoutings(fx.rate,        "flanger.rate",        patch); }
+        else if (a.name == "depth")       { fx.depth       = compileExpr(*a.value, ParamKind::Level,       ctx);
+                                            recordRoutings(fx.depth,       "flanger.depth",       patch); }
+        else if (a.name == "centreDelay") { fx.centreDelay = compileExpr(*a.value, ParamKind::Time,        ctx);
+                                            recordRoutings(fx.centreDelay, "flanger.centreDelay", patch); }
+        else if (a.name == "feedback")    { fx.feedback    = compileExpr(*a.value, ParamKind::SignedLevel, ctx);
+                                            recordRoutings(fx.feedback,    "flanger.feedback",    patch); }
+        else if (a.name == "mix")         { fx.mix         = compileExpr(*a.value, ParamKind::Level,       ctx);
+                                            recordRoutings(fx.mix,         "flanger.mix",         patch); }
+        else err(ctx, "unknown parameter '" + a.name + "' in flanger", a.line, a.col);
+    }
+}
+
+void compileCompressorBlock(const Block& b, CompiledPatch& patch, Ctx& ctx) {
+    auto& fx = patch.compressor;
+    fx.enabled = true;
+    for (const auto& a : b.assignments) {
+        if (!a.value) continue;
+        if      (a.name == "threshold") { fx.threshold = compileExpr(*a.value, ParamKind::Volume, ctx);
+                                          recordRoutings(fx.threshold, "compressor.threshold", patch); }
+        else if (a.name == "ratio")     { fx.ratio     = compileExpr(*a.value, ParamKind::Level,  ctx);
+                                          recordRoutings(fx.ratio,     "compressor.ratio",     patch); }
+        else if (a.name == "attack")    { fx.attack    = compileExpr(*a.value, ParamKind::Time,   ctx);
+                                          recordRoutings(fx.attack,    "compressor.attack",    patch); }
+        else if (a.name == "release")   { fx.release   = compileExpr(*a.value, ParamKind::Time,   ctx);
+                                          recordRoutings(fx.release,   "compressor.release",   patch); }
+        else if (a.name == "makeup")    { fx.makeup    = compileExpr(*a.value, ParamKind::Volume, ctx);
+                                          recordRoutings(fx.makeup,    "compressor.makeup",    patch); }
+        else err(ctx, "unknown parameter '" + a.name + "' in compressor", a.line, a.col);
+    }
+}
+
+void compileDistortionBlock(const Block& b, CompiledPatch& patch, Ctx& ctx) {
+    auto& fx = patch.distortion;
+    fx.enabled = true;
+    for (const auto& a : b.assignments) {
+        if (!a.value) continue;
+        if      (a.name == "shape") readDistortionShape(*a.value, fx.shape, ctx);
+        else if (a.name == "drive") { fx.drive = compileExpr(*a.value, ParamKind::Volume, ctx);
+                                      recordRoutings(fx.drive, "distortion.drive", patch); }
+        else if (a.name == "mix")   { fx.mix   = compileExpr(*a.value, ParamKind::Level,  ctx);
+                                      recordRoutings(fx.mix,   "distortion.mix",   patch); }
+        else err(ctx, "unknown parameter '" + a.name + "' in distortion", a.line, a.col);
+    }
+}
+
+void compileEqBlock(const Block& b, CompiledPatch& patch, Ctx& ctx) {
+    auto& fx = patch.eq;
+    fx.enabled = true;
+    for (const auto& a : b.assignments) {
+        if (!a.value) continue;
+        if      (a.name == "lowFreq")  { fx.lowFreq  = compileExpr(*a.value, ParamKind::Frequency, ctx);
+                                         recordRoutings(fx.lowFreq,  "eq.lowFreq",  patch); }
+        else if (a.name == "lowGain")  { fx.lowGain  = compileExpr(*a.value, ParamKind::Volume,    ctx);
+                                         recordRoutings(fx.lowGain,  "eq.lowGain",  patch); }
+        else if (a.name == "midFreq")  { fx.midFreq  = compileExpr(*a.value, ParamKind::Frequency, ctx);
+                                         recordRoutings(fx.midFreq,  "eq.midFreq",  patch); }
+        else if (a.name == "midQ")     { fx.midQ     = compileExpr(*a.value, ParamKind::Level,     ctx);
+                                         recordRoutings(fx.midQ,     "eq.midQ",     patch); }
+        else if (a.name == "midGain")  { fx.midGain  = compileExpr(*a.value, ParamKind::Volume,    ctx);
+                                         recordRoutings(fx.midGain,  "eq.midGain",  patch); }
+        else if (a.name == "highFreq") { fx.highFreq = compileExpr(*a.value, ParamKind::Frequency, ctx);
+                                         recordRoutings(fx.highFreq, "eq.highFreq", patch); }
+        else if (a.name == "highGain") { fx.highGain = compileExpr(*a.value, ParamKind::Volume,    ctx);
+                                         recordRoutings(fx.highGain, "eq.highGain", patch); }
+        else err(ctx, "unknown parameter '" + a.name + "' in eq", a.line, a.col);
+    }
+}
+
 void compileMasterBlock(const Block& b, CompiledPatch& patch, Ctx& ctx) {
     for (const auto& a : b.assignments) {
         if (!a.value) continue;
@@ -485,6 +639,47 @@ void initDefaults(CompiledPatch& p) {
     p.lfo2.phase = constE(0.0);
 
     p.masterVolume = constE(std::pow(10.0, -6.0/20.0));  // -6 dB
+
+    // Effect-block defaults. `enabled = false` keeps each FX bypassed unless
+    // the user actually declares the block; the values below are only used
+    // once enabled, to fill in any parameters the user omitted.
+    p.reverb.mix     = constE(0.3);
+    p.reverb.size    = constE(0.5);
+    p.reverb.damping = constE(0.5);
+    p.reverb.width   = constE(1.0);
+
+    p.delay.time     = constE(0.25);
+    p.delay.feedback = constE(0.4);
+    p.delay.mix      = constE(0.3);
+
+    p.chorus.rate        = constE(1.0);
+    p.chorus.depth       = constE(0.25);
+    p.chorus.centreDelay = constE(0.007);   // 7 ms
+    p.chorus.feedback    = constE(0.0);
+    p.chorus.mix         = constE(0.5);
+
+    p.flanger.rate        = constE(0.5);
+    p.flanger.depth       = constE(0.6);
+    p.flanger.centreDelay = constE(0.002);  // 2 ms
+    p.flanger.feedback    = constE(0.5);
+    p.flanger.mix         = constE(0.5);
+
+    p.compressor.threshold = constE(std::pow(10.0, -12.0/20.0));   // -12 dB
+    p.compressor.ratio     = constE(4.0);
+    p.compressor.attack    = constE(0.005);
+    p.compressor.release   = constE(0.1);
+    p.compressor.makeup    = constE(1.0);
+
+    p.distortion.drive = constE(1.0);   // 0 dB
+    p.distortion.mix   = constE(1.0);
+
+    p.eq.lowFreq  = constE(200.0);
+    p.eq.lowGain  = constE(1.0);
+    p.eq.midFreq  = constE(1000.0);
+    p.eq.midQ     = constE(0.7);
+    p.eq.midGain  = constE(1.0);
+    p.eq.highFreq = constE(4000.0);
+    p.eq.highGain = constE(1.0);
 }
 
 } // anonymous namespace
@@ -518,7 +713,14 @@ CompiledPatch Compiler::compile(const Program& program,
         else if (b.name == "fltEnv") compileEnvBlock(b, patch.fltEnv, "fltEnv", ctx, patch);
         else if (b.name == "lfo1")   compileLfoBlock(b, patch.lfo1, "lfo1", ctx, patch);
         else if (b.name == "lfo2")   compileLfoBlock(b, patch.lfo2, "lfo2", ctx, patch);
-        else if (b.name == "master") compileMasterBlock(b, patch, ctx);
+        else if (b.name == "master")     compileMasterBlock(b, patch, ctx);
+        else if (b.name == "reverb")     compileReverbBlock(b, patch, ctx);
+        else if (b.name == "delay")      compileDelayBlock(b, patch, ctx);
+        else if (b.name == "chorus")     compileChorusBlock(b, patch, ctx);
+        else if (b.name == "flanger")    compileFlangerBlock(b, patch, ctx);
+        else if (b.name == "compressor") compileCompressorBlock(b, patch, ctx);
+        else if (b.name == "distortion") compileDistortionBlock(b, patch, ctx);
+        else if (b.name == "eq")         compileEqBlock(b, patch, ctx);
         else err(ctx, "unknown block '" + b.name + "'", b.line, b.col);
     }
 
@@ -534,7 +736,25 @@ CompiledPatch Compiler::compile(const Program& program,
             || check(patch.ampEnv.s) || check(patch.ampEnv.r)
             || check(patch.fltEnv.a) || check(patch.fltEnv.d)
             || check(patch.fltEnv.s) || check(patch.fltEnv.r)
-            || check(patch.masterVolume);
+            || check(patch.masterVolume)
+            || check(patch.reverb.mix) || check(patch.reverb.size)
+            || check(patch.reverb.damping) || check(patch.reverb.width)
+            || check(patch.delay.time) || check(patch.delay.feedback)
+            || check(patch.delay.mix)
+            || check(patch.chorus.rate) || check(patch.chorus.depth)
+            || check(patch.chorus.centreDelay) || check(patch.chorus.feedback)
+            || check(patch.chorus.mix)
+            || check(patch.flanger.rate) || check(patch.flanger.depth)
+            || check(patch.flanger.centreDelay) || check(patch.flanger.feedback)
+            || check(patch.flanger.mix)
+            || check(patch.compressor.threshold) || check(patch.compressor.ratio)
+            || check(patch.compressor.attack) || check(patch.compressor.release)
+            || check(patch.compressor.makeup)
+            || check(patch.distortion.drive) || check(patch.distortion.mix)
+            || check(patch.eq.lowFreq) || check(patch.eq.lowGain)
+            || check(patch.eq.midFreq) || check(patch.eq.midQ)
+            || check(patch.eq.midGain)
+            || check(patch.eq.highFreq) || check(patch.eq.highGain);
     };
     bool lfo1Declared = false, lfo2Declared = false;
     for (const auto& s : program.stmts) {

@@ -2,6 +2,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_dsp/juce_dsp.h>
 #include <memory>
 #include <atomic>
 #include <vector>
@@ -29,8 +30,8 @@ public:
     // Audio thread: process a block.
     void process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi);
 
-    // Split form: caller can tap the buffer between the two for spectrum/etc.
     void renderSynth(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi);
+    void applyEffects(juce::AudioBuffer<float>& buffer);
     void applyMaster(juce::AudioBuffer<float>& buffer);
 
     void setBpm(double v) { bpm.store(v); }
@@ -69,6 +70,19 @@ private:
     int    blockSize  = 512;
     std::atomic<double> bpm{120.0};
     std::atomic<float>  lastPeak{0.0f};
+
+    // ---- FX chain state -----------------------------------------------------
+    bool                          fxPrepared = false;
+    juce::dsp::Reverb             fxReverb;
+    juce::dsp::Chorus<float>      fxChorus;
+    juce::dsp::Chorus<float>      fxFlanger;     // a chorus tuned to flanger ranges
+    juce::dsp::Compressor<float>  fxComp;
+    juce::dsp::IIR::Filter<float> eqLowL,  eqLowR;
+    juce::dsp::IIR::Filter<float> eqMidL,  eqMidR;
+    juce::dsp::IIR::Filter<float> eqHighL, eqHighR;
+    std::vector<float>            dlyBufL, dlyBufR;
+    int                           dlyMaxSamples = 0;
+    int                           dlyWriteIdx   = 0;
 };
 
 } // namespace progsynth

@@ -64,22 +64,17 @@ void ProgSynthAudioProcessorEditor::paint(juce::Graphics& g) {
 
     g.setColour(Theme::fg());
     g.setFont(Theme::monoFont(14.0f));
-    g.drawText("ProgSynth   [Ctrl+Enter to compile]", top.reduced(8, 0),
+    g.drawText(juce::String::fromUTF8("\xe2\x94\x80  ::\xce\xb1\xcf\x83\xce\xb5~  \xe2\x94\x80   ASE ProgSynth"),
+               top.reduced(8, 0),
                juce::Justification::centredLeft);
 
     // live diagnostics on the right side of the top bar
-    int   voices = processorRef.getActiveVoiceCount();
-    float peak   = processorRef.getLastBlockPeak();
-    int   midiEvents = processorRef.getLastMidiEventCount();
-    int   noteOns = processorRef.getLastMidiNoteOnCount();
-    bool  patchOk = processorRef.hasPatchInstalled();
-
-    float master = processorRef.getCurrentMasterGain();
+    int    voices = processorRef.getActiveVoiceCount();
+    float  peak   = processorRef.getLastBlockPeak();
+    float  master = processorRef.getCurrentMasterGain();
 
     juce::String diag;
-    diag << "patch: " << (patchOk ? "ok" : "NULL")
-         << "    master: " << juce::String(master, 3)
-         << "    midi: " << midiEvents << "/" << noteOns
+    diag << "master: " << juce::String(master, 3)
          << "    voices: " << voices
          << "    peak: ";
     if (peak <= 1.0e-5f) diag << "  -inf dB";

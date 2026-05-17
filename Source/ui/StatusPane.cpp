@@ -27,6 +27,7 @@ void StatusPane::showInfo(const juce::String& line) {
 
 void StatusPane::showCompileErrors(const juce::StringArray& lines) {
     juce::String s;
+    s << "[Ctrl+Enter to compile]\n\n";
     s << "STATUS: compile FAILED\n\n";
     for (const auto& l : lines) s << l << "\n";
     text.setColour(juce::TextEditor::textColourId, Theme::error());
@@ -37,6 +38,7 @@ void StatusPane::showCompileSuccess(const CompiledPatch& patch) {
     text.setColour(juce::TextEditor::textColourId, Theme::fg());
 
     juce::String s;
+    s << "[Ctrl+Enter to compile]\n\n";
     s << "STATUS: compiled OK"
       << " - " << patch.activeRoutings << " active routings, 16 voices\n";
 

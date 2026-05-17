@@ -119,6 +119,7 @@ A `let` introduces an alias for an expression. References to the alias are resol
 | `osc1`       | Oscillator 1                                           |
 | `osc2`       | Oscillator 2                                           |
 | `osc3`       | Oscillator 3                                           |
+| `noise`      | Noise generator (white or pink)                        |
 | `filter`     | Voice filter                                           |
 | `ampEnv`     | Amplitude envelope (ADSR)                              |
 | `fltEnv`     | Filter envelope (ADSR)                                 |
@@ -137,6 +138,12 @@ The seven FX blocks are *optional*: omit them and the signal flows from the synt
 
 ```
 voices → distortion → eq → compressor → chorus → flanger → delay → reverb → master
+```
+
+Within a single voice, the per‑voice mix bus is the sum of the three oscillators and the `noise` generator, which is then sent through `filter` and scaled by `ampEnv`:
+
+```
+osc1 + osc2 + osc3 + noise → filter → ampEnv → (voice output)
 ```
 
 FX expressions are evaluated *globally* (once per audio block) with all per‑voice inputs (`velocity`, `ampEnv`, `lfo1`, …) read as zero. Use compile‑time constants — referencing per‑voice modulation sources from FX parameters compiles, but those sources contribute nothing here.
@@ -163,7 +170,23 @@ osc2 { wave = saw, freq = pitch + 7st, level = 0.5 }
 osc3 { wave = square, freq = pitch - 12st, level = 0.4 }
 ```
 
-### 3.2 `filter`
+### 3.2 `noise`
+
+A per‑voice noise generator. Its output is summed into the voice mix alongside the three oscillators and feeds into `filter` and `ampEnv` exactly like the oscillators do. Each voice has its own independent noise stream, so unison and polyphonic chords sound naturally decorrelated.
+
+| Parameter | Kind        | Description                                                |
+|-----------|-------------|------------------------------------------------------------|
+| `type`    | enum        | `white` (uniform spectrum) or `pink` (≈ ‑3 dB/oct)         |
+| `level`   | level expr  | 0..1 mix into the voice bus (clipped at runtime)           |
+
+```
+noise { type = white, level = 0.15 }
+noise { type = pink,  level = velocity * 0.5 }
+```
+
+The pink‑noise output is generated with Paul Kellet's economy filter (≈ ‑3 dB/oct, ~0.1 dB ripple across the audible band). Output amplitude is roughly unity peak in both modes, so `level` behaves the same way as for the oscillators.
+
+### 3.3 `filter`
 
 | Parameter  | Kind             | Description                                          |
 |------------|------------------|------------------------------------------------------|
@@ -183,7 +206,7 @@ filter {
 }
 ```
 
-### 3.3 `ampEnv`, `fltEnv`
+### 3.4 `ampEnv`, `fltEnv`
 
 | Parameter | Kind       | Description |
 |-----------|------------|-------------|
@@ -197,7 +220,7 @@ ampEnv { a = 5ms, d = 200ms, s = 0.7, r = 300ms }
 fltEnv { a = 1ms, d = 80ms,  s = 0,   r = 80ms  }
 ```
 
-### 3.4 `lfo1`, `lfo2`
+### 3.5 `lfo1`, `lfo2`
 
 | Parameter   | Kind                   | Description                                                  |
 |-------------|------------------------|--------------------------------------------------------------|
@@ -214,7 +237,7 @@ lfo2 { wave = tri,  rate = 1/8, sync = on }
 
 If `rate` is a sync literal, the compiler stores the rational rate in `lfo*.syncRate` and the runtime converts it to Hz using the host BPM.
 
-### 3.5 `master`
+### 3.6 `master`
 
 | Parameter | Kind        | Description                                          |
 |-----------|-------------|------------------------------------------------------|
@@ -224,7 +247,7 @@ If `rate` is a sync literal, the compiler stores the rational rate in `lfo*.sync
 master { volume = -3dB }
 ```
 
-### 3.6 `distortion`
+### 3.7 `distortion`
 
 A simple waveshaper. With `shape = soft` the curve is `tanh(drive · x)`; with `shape = hard` the signal is hard‑clipped to `±1` after the drive gain.
 
@@ -238,7 +261,7 @@ A simple waveshaper. With `shape = soft` the curve is `tanh(drive · x)`; with `
 distortion { shape = soft, drive = 12dB, mix = 0.6 }
 ```
 
-### 3.7 `eq`
+### 3.8 `eq`
 
 A static 3‑band EQ: low shelf, peaking mid, high shelf. Each band's `*Gain` is a linear gain, so `0dB` (= `1.0`) bypasses that band.
 
@@ -260,7 +283,7 @@ eq {
 }
 ```
 
-### 3.8 `compressor`
+### 3.9 `compressor`
 
 Feed‑forward broadband compressor. `threshold` is written as a level/dB literal (e.g. `-12dB`); the engine converts to dB internally.
 
@@ -282,7 +305,7 @@ compressor {
 }
 ```
 
-### 3.9 `chorus`
+### 3.10 `chorus`
 
 | Parameter     | Kind            | Description                                            |
 |---------------|-----------------|--------------------------------------------------------|
@@ -296,7 +319,7 @@ compressor {
 chorus { rate = 0.8Hz, depth = 0.3, centreDelay = 7ms, feedback = 0.1, mix = 0.5 }
 ```
 
-### 3.10 `flanger`
+### 3.11 `flanger`
 
 Same DSP shape as `chorus` but tuned for shorter delays and stronger feedback. The compiler clamps `centreDelay` to ≤ 20 ms at runtime.
 
@@ -312,7 +335,7 @@ Same DSP shape as `chorus` but tuned for shorter delays and stronger feedback. T
 flanger { rate = 0.3Hz, depth = 0.7, centreDelay = 2ms, feedback = 0.6, mix = 0.5 }
 ```
 
-### 3.11 `delay`
+### 3.12 `delay`
 
 Stereo feedback delay. `time` accepts either a time literal *or* a sync literal (e.g. `1/8`); when a sync literal is used, `sync = on` makes the engine recompute the delay length from host BPM each block.
 
@@ -330,7 +353,7 @@ delay { time = 380ms,         feedback = 0.5,  mix = 0.25 }
 
 Maximum delay length is 4 seconds; longer values are clamped.
 
-### 3.12 `reverb`
+### 3.13 `reverb`
 
 Algorithmic reverb (the JUCE `Reverb` algorithm).
 
@@ -450,6 +473,7 @@ If a block is omitted, or a parameter is omitted, the following defaults apply:
 osc1   { wave = saw,    freq = pitch, level = 0.7 }
 osc2   { wave = saw,    freq = pitch, level = 0.0 }
 osc3   { wave = saw,    freq = pitch, level = 0.0 }
+noise  { type = white, level = 0.0 }
 filter { type = lp, cutoff = 2000Hz, res = 0.2, env = 0, keytrack = 0 }
 ampEnv { a = 5ms,  d = 200ms, s = 0.7, r = 300ms }
 fltEnv { a = 5ms,  d = 200ms, s = 0.7, r = 300ms }

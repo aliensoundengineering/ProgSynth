@@ -294,6 +294,21 @@ bool readWave(const Expr& e, WaveKind& out, Ctx& ctx) {
     return true;
 }
 
+bool readNoiseType(const Expr& e, NoiseKind& out, Ctx& ctx) {
+    if (e.kind != ExprKind::Identifier) {
+        err(ctx, "expected noise type ('white' or 'pink')", e.line, e.col);
+        return false;
+    }
+    if      (e.name == "white") out = NoiseKind::White;
+    else if (e.name == "pink")  out = NoiseKind::Pink;
+    else {
+        err(ctx, "expected noise type ('white' or 'pink'), got '" + e.name + "'",
+            e.line, e.col);
+        return false;
+    }
+    return true;
+}
+
 bool readFilterType(const Expr& e, FilterKind& out, Ctx& ctx) {
     if (e.kind != ExprKind::Identifier) {
         err(ctx, "expected filter type (lp, hp)", e.line, e.col);
@@ -348,6 +363,22 @@ void compileOscBlock(const Block& b, OscPatch& osc, const std::string& name,
             recordRoutings(osc.level, name + ".level", patch);
         } else {
             err(ctx, "unknown parameter '" + a.name + "' in " + name,
+                a.line, a.col);
+        }
+    }
+}
+
+void compileNoiseBlock(const Block& b, NoisePatch& n, Ctx& ctx,
+                       CompiledPatch& patch) {
+    for (const auto& a : b.assignments) {
+        if (!a.value) continue;
+        if (a.name == "type") {
+            readNoiseType(*a.value, n.type, ctx);
+        } else if (a.name == "level") {
+            n.level = compileExpr(*a.value, ParamKind::Level, ctx);
+            recordRoutings(n.level, "noise.level", patch);
+        } else {
+            err(ctx, "unknown parameter '" + a.name + "' in noise",
                 a.line, a.col);
         }
     }
@@ -622,6 +653,9 @@ void initDefaults(CompiledPatch& p) {
     p.osc2.wave = WaveKind::Saw; p.osc2.freq = pitchE(); p.osc2.level = constE(0.0);
     p.osc3.wave = WaveKind::Saw; p.osc3.freq = pitchE(); p.osc3.level = constE(0.0);
 
+    p.noise.type  = NoiseKind::White;
+    p.noise.level = constE(0.0);
+
     p.filter.type     = FilterKind::LP;
     p.filter.cutoff   = constE(2000.0);
     p.filter.res      = constE(0.2);
@@ -708,6 +742,7 @@ CompiledPatch Compiler::compile(const Program& program,
         if      (b.name == "osc1")   compileOscBlock(b, patch.osc1, "osc1", ctx, patch);
         else if (b.name == "osc2")   compileOscBlock(b, patch.osc2, "osc2", ctx, patch);
         else if (b.name == "osc3")   compileOscBlock(b, patch.osc3, "osc3", ctx, patch);
+        else if (b.name == "noise")  compileNoiseBlock(b, patch.noise, ctx, patch);
         else if (b.name == "filter") compileFilterBlock(b, patch.filter, ctx, patch);
         else if (b.name == "ampEnv") compileEnvBlock(b, patch.ampEnv, "ampEnv", ctx, patch);
         else if (b.name == "fltEnv") compileEnvBlock(b, patch.fltEnv, "fltEnv", ctx, patch);
@@ -730,6 +765,7 @@ CompiledPatch Compiler::compile(const Program& program,
         return check(patch.osc1.freq) || check(patch.osc1.level)
             || check(patch.osc2.freq) || check(patch.osc2.level)
             || check(patch.osc3.freq) || check(patch.osc3.level)
+            || check(patch.noise.level)
             || check(patch.filter.cutoff) || check(patch.filter.res)
             || check(patch.filter.env) || check(patch.filter.keytrack)
             || check(patch.ampEnv.a) || check(patch.ampEnv.d)

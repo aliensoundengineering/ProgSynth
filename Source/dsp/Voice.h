@@ -8,6 +8,7 @@
 #include "../lang/CompiledPatch.h"
 #include "../lang/ExprTree.h"
 #include "Oscillator.h"
+#include "Noise.h"
 #include "LFO.h"
 #include "Envelope.h"
 
@@ -46,6 +47,7 @@ private:
     SynthEngine& engine;
 
     Oscillator osc1, osc2, osc3;
+    Noise      noise;
     LFO        lfo1, lfo2;
     Envelope   ampEnv, fltEnv;
     juce::dsp::StateVariableTPTFilter<float> filter;
@@ -62,6 +64,7 @@ private:
 
     // resolved per-control-block parameter values
     float osc1Lvl = 0.7f, osc2Lvl = 0.0f, osc3Lvl = 0.0f;
+    float noiseLvl = 0.0f;
     float curCutoffHz = 2000.0f;
     float curRes      = 0.2f;
 

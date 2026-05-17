@@ -11,6 +11,7 @@ ProgVoice::ProgVoice(SynthEngine& e) : engine(e) {}
 void ProgVoice::prepare(double sr, int blockSize) {
     sampleRate = sr;
     osc1.prepare(sr); osc2.prepare(sr); osc3.prepare(sr);
+    noise.prepare(sr);
     lfo1.prepare(sr); lfo2.prepare(sr);
     ampEnv.prepare(sr); fltEnv.prepare(sr);
 
@@ -37,6 +38,7 @@ void ProgVoice::startNote(int n, float vel,
     osc1.setWave(patch->osc1.wave); osc1.reset();
     osc2.setWave(patch->osc2.wave); osc2.reset();
     osc3.setWave(patch->osc3.wave); osc3.reset();
+    noise.setKind(patch->noise.type); noise.reset();
 
     lfo1.setWave(patch->lfo1.wave);
     lfo2.setWave(patch->lfo2.wave);
@@ -111,9 +113,10 @@ void ProgVoice::controlTick(const CompiledPatch& patch) {
     osc1.setFrequency(std::max(0.01, patch.osc1.freq.evaluate(in)));
     osc2.setFrequency(std::max(0.01, patch.osc2.freq.evaluate(in)));
     osc3.setFrequency(std::max(0.01, patch.osc3.freq.evaluate(in)));
-    osc1Lvl = (float)std::clamp(patch.osc1.level.evaluate(in), 0.0, 1.0);
-    osc2Lvl = (float)std::clamp(patch.osc2.level.evaluate(in), 0.0, 1.0);
-    osc3Lvl = (float)std::clamp(patch.osc3.level.evaluate(in), 0.0, 1.0);
+    osc1Lvl  = (float)std::clamp(patch.osc1.level.evaluate(in),  0.0, 1.0);
+    osc2Lvl  = (float)std::clamp(patch.osc2.level.evaluate(in),  0.0, 1.0);
+    osc3Lvl  = (float)std::clamp(patch.osc3.level.evaluate(in),  0.0, 1.0);
+    noiseLvl = (float)std::clamp(patch.noise.level.evaluate(in), 0.0, 1.0);
 
     // Filter: cutoff with keytrack and env amount applied here.
     double cutoff   = patch.filter.cutoff.evaluate(in);
@@ -165,7 +168,8 @@ void ProgVoice::renderNextBlock(juce::AudioBuffer<float>& outBuffer,
             float s1 = osc1.tick() * osc1Lvl;
             float s2 = osc2.tick() * osc2Lvl;
             float s3 = osc3.tick() * osc3Lvl;
-            mono[written + i] = s1 + s2 + s3;
+            float sn = noise.tick() * noiseLvl;
+            mono[written + i] = s1 + s2 + s3 + sn;
         }
 
         for (int i = 0; i < n; ++i) {

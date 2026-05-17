@@ -8,6 +8,7 @@ namespace progsynth {
 
 enum class WaveKind { Sine, Tri, Saw, Square };
 enum class FilterKind { LP, HP };
+enum class NoiseKind { White, Pink };
 
 struct SyncRate {
     int  num = 1;
@@ -31,6 +32,11 @@ struct SyncRate {
 struct OscPatch {
     WaveKind   wave = WaveKind::Saw;
     Expression freq;        // pitch-context expression (output: Hz)
+    Expression level;       // 0..1
+};
+
+struct NoisePatch {
+    NoiseKind  type  = NoiseKind::White;
     Expression level;       // 0..1
 };
 
@@ -128,6 +134,7 @@ struct EqPatch {
 
 struct CompiledPatch {
     OscPatch    osc1, osc2, osc3;
+    NoisePatch  noise;
     FilterPatch filter;
     EnvPatch    ampEnv;
     EnvPatch    fltEnv;

@@ -44,7 +44,7 @@ void Parser::synchronize() {
         if (t.type == TokenType::Identifier) {
             const auto& n = t.text;
             if (n == "osc1" || n == "osc2" || n == "osc3" ||
-                n == "filter" || n == "ampEnv" || n == "fltEnv" ||
+                n == "noise" || n == "filter" || n == "ampEnv" || n == "fltEnv" ||
                 n == "lfo1" || n == "lfo2" || n == "master")
                 return;
         }

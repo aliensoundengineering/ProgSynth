@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(ProgSynth VERSION 0.1.1)
+project(ProgSynth VERSION 0.1.2)
 
 # Use C++17 (JUCE 8 requirement)
 set(CMAKE_CXX_STANDARD 17)
@@ -49,6 +49,8 @@ target_sources(ProgSynth
         # DSP
         Source/dsp/Oscillator.h
         Source/dsp/Oscillator.cpp
+        Source/dsp/Noise.h
+        Source/dsp/Noise.cpp
         Source/dsp/LFO.h
         Source/dsp/LFO.cpp
         Source/dsp/Envelope.h

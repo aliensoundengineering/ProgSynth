@@ -32,6 +32,8 @@ target_sources(ProgSynth
         Source/PluginProcessor.h
         Source/PluginEditor.cpp
         Source/PluginEditor.h
+        Source/Presets.cpp
+        Source/Presets.h
 
         # language
         Source/lang/Units.h

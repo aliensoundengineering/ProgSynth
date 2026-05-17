@@ -12,6 +12,7 @@
 #include "lang/Compiler.h"
 #include "lang/Lexer.h"
 #include "lang/Parser.h"
+#include "Presets.h"
 
 class ProgSynthAudioProcessor : public juce::AudioProcessor
 {
@@ -61,6 +62,19 @@ public:
 
     static const char* getDefaultPatchScript();
 
+    // ---- preset API ---------------------------------------------------------
+    progsynth::PresetManager&       getPresetManager()       { return presets; }
+    const progsynth::PresetManager& getPresetManager() const { return presets; }
+
+    // Replace the live script with a preset's script and (if it compiles)
+    // install the resulting patch into the engine. Returns false when the
+    // preset isn't found or fails to compile.
+    bool loadPreset(const juce::String& name);
+
+    // Persist the current script text under `name`. Returns false on name
+    // collision with a factory preset, empty name, or write failure.
+    bool saveCurrentAsPreset(const juce::String& name);
+
     // UI-facing accessors -----------------------------------------------------
     juce::MidiKeyboardState&        getKeyboardState()       { return keyboardState; }
     const progsynth::SpectrumSink&  getSpectrumSink()  const { return spectrum; }
@@ -75,6 +89,7 @@ public:
 private:
     progsynth::SynthEngine engine;
     progsynth::SpectrumSink spectrum;
+    progsynth::PresetManager presets;
     juce::MidiKeyboardState keyboardState;
     juce::String           scriptText;
     std::atomic<int>       lastMidiEvents{0};

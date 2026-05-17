@@ -115,6 +115,23 @@ void ProgSynthAudioProcessor::setStateInformation(const void* data, int size) {
     }
 }
 
+bool ProgSynthAudioProcessor::loadPreset(const juce::String& name) {
+    auto* p = presets.find(name);
+    if (p == nullptr) return false;
+
+    juce::StringArray errs;
+    progsynth::CompiledPatch patch;
+    if (!compileScript(p->script, patch, errs)) return false;
+
+    scriptText = p->script;
+    installPatch(std::move(patch));
+    return true;
+}
+
+bool ProgSynthAudioProcessor::saveCurrentAsPreset(const juce::String& name) {
+    return presets.saveUser(name, scriptText);
+}
+
 bool ProgSynthAudioProcessor::compileScript(const juce::String& source,
                                             progsynth::CompiledPatch& outPatch,
                                             juce::StringArray& outErrorLines)

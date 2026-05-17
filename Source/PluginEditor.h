@@ -25,6 +25,10 @@ private:
     void handleReplCommand(const juce::String& line);
     void timerCallback() override;
 
+    void refreshPresetList(const juce::String& selectName = {});
+    void onPresetChosen();
+    void onSaveClicked();
+
     ProgSynthAudioProcessor& processorRef;
 
     progsynth::EditorPane    editor;
@@ -32,6 +36,10 @@ private:
     progsynth::SpectrumPane  spectrum;
     progsynth::ReplPane      repl;
     juce::MidiKeyboardComponent keyboard;
+
+    juce::Label      presetLabel;
+    juce::ComboBox   presetBox;
+    juce::TextButton saveButton { "Save..." };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ProgSynthAudioProcessorEditor)
 };

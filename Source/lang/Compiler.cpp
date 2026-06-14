@@ -361,6 +361,9 @@ void compileOscBlock(const Block& b, OscPatch& osc, const std::string& name,
         } else if (a.name == "level") {
             osc.level = compileExpr(*a.value, ParamKind::Level, ctx);
             recordRoutings(osc.level, name + ".level", patch);
+        } else if (a.name == "pw") {
+            osc.pw = compileExpr(*a.value, ParamKind::Level, ctx);
+            recordRoutings(osc.pw, name + ".pw", patch);
         } else {
             err(ctx, "unknown parameter '" + a.name + "' in " + name,
                 a.line, a.col);
@@ -649,9 +652,9 @@ void initDefaults(CompiledPatch& p) {
         return e;
     };
 
-    p.osc1.wave = WaveKind::Saw; p.osc1.freq = pitchE(); p.osc1.level = constE(0.7);
-    p.osc2.wave = WaveKind::Saw; p.osc2.freq = pitchE(); p.osc2.level = constE(0.0);
-    p.osc3.wave = WaveKind::Saw; p.osc3.freq = pitchE(); p.osc3.level = constE(0.0);
+    p.osc1.wave = WaveKind::Saw; p.osc1.freq = pitchE(); p.osc1.level = constE(0.7); p.osc1.pw = constE(0.5);
+    p.osc2.wave = WaveKind::Saw; p.osc2.freq = pitchE(); p.osc2.level = constE(0.0); p.osc2.pw = constE(0.5);
+    p.osc3.wave = WaveKind::Saw; p.osc3.freq = pitchE(); p.osc3.level = constE(0.0); p.osc3.pw = constE(0.5);
 
     p.noise.type  = NoiseKind::White;
     p.noise.level = constE(0.0);
@@ -762,9 +765,9 @@ CompiledPatch Compiler::compile(const Program& program,
     // Warnings: declared but unused LFOs.
     auto usesLfo = [&](int idx) {
         auto check = [idx](const Expression& e) { return (e.inputMask & (1u<<idx)) != 0; };
-        return check(patch.osc1.freq) || check(patch.osc1.level)
-            || check(patch.osc2.freq) || check(patch.osc2.level)
-            || check(patch.osc3.freq) || check(patch.osc3.level)
+        return check(patch.osc1.freq) || check(patch.osc1.level) || check(patch.osc1.pw)
+            || check(patch.osc2.freq) || check(patch.osc2.level) || check(patch.osc2.pw)
+            || check(patch.osc3.freq) || check(patch.osc3.level) || check(patch.osc3.pw)
             || check(patch.noise.level)
             || check(patch.filter.cutoff) || check(patch.filter.res)
             || check(patch.filter.env) || check(patch.filter.keytrack)

@@ -33,6 +33,7 @@ struct OscPatch {
     WaveKind   wave = WaveKind::Saw;
     Expression freq;        // pitch-context expression (output: Hz)
     Expression level;       // 0..1
+    Expression pw;          // 0..1 duty (square) / symmetry (tri); default 0.5
 };
 
 struct NoisePatch {

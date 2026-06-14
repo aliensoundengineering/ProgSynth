@@ -39,9 +39,10 @@ float Oscillator::tick() {
             v = std::sin(2.0 * 3.14159265358979323846 * phase);
             break;
         case WaveKind::Tri: {
-            // unipolar tri then scale to [-1,1]
-            double tri = (phase < 0.5) ? (4.0 * phase - 1.0)
-                                       : (3.0 - 4.0 * phase);
+
+            const double w = pulseWidth;
+            double tri = (phase < w) ? (2.0 * phase / w - 1.0)
+                                     : (1.0 - 2.0 * (phase - w) / (1.0 - w));
             v = tri;
             break;
         }
@@ -52,10 +53,11 @@ float Oscillator::tick() {
             break;
         }
         case WaveKind::Square: {
-            double naive = (phase < 0.5) ? 1.0 : -1.0;
+            const double w = pulseWidth;
+            double naive = (phase < w) ? 1.0 : -1.0;
             naive += polyBlep(phase, dt);
-            double phase2 = phase + 0.5;
-            if (phase2 >= 1.0) phase2 -= 1.0;
+            double phase2 = phase - w;
+            if (phase2 < 0.0) phase2 += 1.0;
             naive -= polyBlep(phase2, dt);
             v = naive;
             break;

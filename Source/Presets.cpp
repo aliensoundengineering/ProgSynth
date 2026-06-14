@@ -14,12 +14,14 @@ namespace progsynth {
 //
 //   1  Warm Pad        let, comments, osc1/2/3 (saw/square), filter lp,
 //                      ampEnv, fltEnv, lfo1 (sync=off, retrigger=off),
-//                      chorus, reverb, units st/cent/Hz/kHz/ms/s/dB/%
+//                      lfo1 -> osc3.pw (PWM), chorus, reverb,
+//                      units st/cent/Hz/kHz/ms/s/dB/%
 //   2  Acid Bass       sub alias, velocity, fltEnv, distortion soft,
 //                      compressor
 //   3  FM-ish Lead     sine+tri+square, eq, flanger, delay sync triplet
 //                      (1/8t)
-//   4  Plucked Keys    delay sync dotted (1/8.), distortion soft, reverb
+//   4  Plucked Keys    static pw (narrow pulse), delay sync dotted (1/8.),
+//                      distortion soft, reverb
 //   5  Noise Hat       noise white, filter hp, velocity, eq, compressor
 //   6  Wind Drone      noise pink, lfo1 sync dotted (1/2.), lfo2 free,
 //                      retrigger=on, non-zero phase
@@ -28,6 +30,8 @@ namespace progsynth {
 //   9  Chiptune Lead   gate input, distortion hard, lfo1 routed to filter
 //  10  Dubstep Wobble  '/' arithmetic, parentheses, lfo2 sync (1/4),
 //                      distortion hard, delay sync triplet (1/4t)
+//  11  PWM Sweep        pulse-width sweep: lfo1 -> osc1.pw (PWM), isolated
+//                      square so the duty-cycle timbre change is obvious
 //
 // Everything compiles cleanly against the compiler in Source/lang/.
 // ---------------------------------------------------------------------------
@@ -39,7 +43,7 @@ let swell  = lfo1 * 300Hz
 
 osc1 { wave = saw,    freq = pitch + detune, level = 0.5 }
 osc2 { wave = saw,    freq = pitch - detune, level = 0.5 }
-osc3 { wave = square, freq = pitch - 12st,   level = 0.25 }
+osc3 { wave = square, freq = pitch - 12st,   level = 0.25, pw = 0.5 + lfo1 * 0.25 }
 
 filter {
     type     = lp,
@@ -106,7 +110,7 @@ master  { volume = -6dB }
 
 static const char* k4_Plucked = R"(# Plucked Keys - short pluck with dotted-eighth delay.
 
-osc1 { wave = square, freq = pitch,        level = 0.55 }
+osc1 { wave = square, freq = pitch,        level = 0.55, pw = 0.3 }
 osc2 { wave = sine,   freq = pitch + 7st,  level = 0.3  }
 osc3 { wave = tri,    freq = pitch - 12st, level = 0.25 }
 
@@ -222,6 +226,34 @@ distortion { shape = hard, drive = 6dB, mix = 1.0 }
 master     { volume = -6dB }
 )";
 
+static const char* k11_PwmDemo = R"(# PWM Sweep
+#
+# One raw square oscillator, nothing else in the way. lfo1 slowly sweeps its
+# pulse width (pw) from a thin ~10% pulse, through the symmetric 50% square,
+# out to a thin ~90% pulse, and back. The filter is wide open so you hear the
+# oscillator itself, not the processing.
+#
+# Listen for:
+#   pw = 0.5        -> a full, hollow square (odd harmonics only)
+#   pw -> 0.1 / 0.9 -> thinner, brighter, more nasal (denser harmonics)
+#   the moving width -> the classic chorus-like "PWM" animation
+#
+# To A/B static widths instead, replace the osc1 line with one of these and
+# re-compile (Ctrl+Enter):
+#   osc1 { wave = square, freq = pitch, level = 0.8, pw = 0.5  }   # square
+#   osc1 { wave = square, freq = pitch, level = 0.8, pw = 0.25 }   # narrow
+#   osc1 { wave = square, freq = pitch, level = 0.8, pw = 0.1  }   # thin pulse
+# Try it on a `tri` osc too: there pw skews the triangle toward a ramp.
+
+lfo1 { wave = tri, rate = 0.25Hz, retrigger = on, phase = 0 }
+
+osc1 { wave = square, freq = pitch, level = 0.8, pw = 0.5 + lfo1 * 0.4 }
+
+filter { type = lp, cutoff = 7kHz, res = 0.1 }
+ampEnv { a = 4ms, d = 120ms, s = 1.0, r = 250ms }
+master { volume = -9dB }
+)";
+
 static const char* k10_Wobble = R"(# Dubstep Wobble - quarter-note LFO wobble, hard drive, triplet delay.
 
 let bipolar  = lfo2
@@ -261,6 +293,7 @@ std::vector<Preset> getFactoryPresets() {
         { "Synth Brass",     k8_SynthBrass, true },
         { "Chiptune Lead",   k9_Chiptune,   true },
         { "Dubstep Wobble",  k10_Wobble,    true },
+        { "PWM Demo",        k11_PwmDemo,   true },
     };
 }
 

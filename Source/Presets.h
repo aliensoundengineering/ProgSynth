@@ -11,7 +11,7 @@ struct Preset {
     bool         isFactory = false;
 };
 
-// The 10 baked-in presets that together exercise every command in the patch language.
+// The 11 baked-in presets that together exercise every command in the patch language.
 std::vector<Preset> getFactoryPresets();
 
 class PresetManager {

@@ -72,3 +72,4 @@ Testing/
 
 # AI Tools
 .claude
+/enc_temp_folder

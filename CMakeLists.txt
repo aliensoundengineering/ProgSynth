@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(ProgSynth VERSION 0.1.2)
+project(ProgSynth VERSION 0.1.3)
 
 # Use C++17 (JUCE 8 requirement)
 set(CMAKE_CXX_STANDARD 17)

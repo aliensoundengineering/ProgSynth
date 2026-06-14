@@ -118,6 +118,11 @@ void ProgVoice::controlTick(const CompiledPatch& patch) {
     osc3Lvl  = (float)std::clamp(patch.osc3.level.evaluate(in),  0.0, 1.0);
     noiseLvl = (float)std::clamp(patch.noise.level.evaluate(in), 0.0, 1.0);
 
+
+    osc1.setPulseWidth(patch.osc1.pw.evaluate(in));
+    osc2.setPulseWidth(patch.osc2.pw.evaluate(in));
+    osc3.setPulseWidth(patch.osc3.pw.evaluate(in));
+
     // Filter: cutoff with keytrack and env amount applied here.
     double cutoff   = patch.filter.cutoff.evaluate(in);
     double keytrack = std::clamp(patch.filter.keytrack.evaluate(in), 0.0, 1.0);

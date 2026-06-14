@@ -1,7 +1,7 @@
 ```
 ──────────  ::ασε~  ──
 alien sound engineering
-ProgSynth        v0.1.2
+ProgSynth        v0.1.3
 ───────────────────────
 ```
 Programmable subtractive synthesizer.

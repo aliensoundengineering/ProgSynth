@@ -60,9 +60,9 @@ juce::String StatusPane::renderDiagram(const CompiledPatch& patch) const {
 
     auto hasMod = [&](int idx) {
         auto m = [idx](const Expression& e) { return (e.inputMask & (1u<<idx)) != 0; };
-        return m(patch.osc1.freq) || m(patch.osc1.level)
-            || m(patch.osc2.freq) || m(patch.osc2.level)
-            || m(patch.osc3.freq) || m(patch.osc3.level)
+        return m(patch.osc1.freq) || m(patch.osc1.level) || m(patch.osc1.pw)
+            || m(patch.osc2.freq) || m(patch.osc2.level) || m(patch.osc2.pw)
+            || m(patch.osc3.freq) || m(patch.osc3.level) || m(patch.osc3.pw)
             || m(patch.filter.cutoff) || m(patch.filter.res)
             || m(patch.filter.env)    || m(patch.filter.keytrack);
     };

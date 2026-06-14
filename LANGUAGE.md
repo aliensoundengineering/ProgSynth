@@ -163,12 +163,42 @@ For each block this section lists every parameter, its expected expression kind,
 | `wave`    | enum        | `sine`, `tri`, `saw`, `square` (alias `sub` ≡ `square`)    |
 | `freq`    | pitch expr  | Pitch context — output is converted to Hz at evaluation    |
 | `level`   | level expr  | 0..1 mix into the voice bus (clipped at runtime)           |
+| `pw`      | level expr  | 0..1 pulse width / duty cycle, default `0.5` (see below)   |
 
 ```
-osc1 { wave = saw, freq = pitch, level = 0.7 }
-osc2 { wave = saw, freq = pitch + 7st, level = 0.5 }
-osc3 { wave = square, freq = pitch - 12st, level = 0.4 }
+osc1 { wave = saw,    freq = pitch,       level = 0.7 }
+osc2 { wave = saw,    freq = pitch + 7st, level = 0.5 }
+osc3 { wave = square, freq = pitch - 12st, level = 0.4, pw = 0.3 }
 ```
+
+**`pw` (pulse width).** A value in `0..1` describing where the waveform turns
+around inside one period. It is clamped at runtime to `[0.01, 0.99]`, keeping it
+strictly inside `(0, 1)` so the wave never collapses to DC or divides by zero.
+
+* On a **`square`** oscillator `pw` is the *duty cycle*: the fraction of the
+  period spent at `+1`. `pw = 0.5` is a symmetric square (and is bit‑for‑bit
+  identical to the previous behaviour); smaller or larger values give the
+  thinner, more nasal/hollow tone of a narrow pulse. A non‑`0.5` duty carries
+  the usual pulse‑wave DC offset of `2·pw − 1`, which the filter and amp stages
+  shape downstream.
+* On a **`tri`** oscillator `pw` is the *symmetry*: the phase position of the
+  peak. `pw = 0.5` is the ordinary symmetric triangle; pushing `pw` toward `0`
+  or `1` skews it into a falling or rising ramp, smoothly morphing the triangle
+  toward a sawtooth.
+* On **`sine`** and **`saw`** oscillators `pw` has no effect — it compiles
+  without error but is ignored by the DSP.
+
+`pw` is a full expression evaluated per control block (≈ every 32 samples), so
+**routing a modulation source to it produces PWM** — the classic animated pulse
+sound. For example, a slow LFO swept across the duty cycle:
+
+```
+lfo1 { wave = tri, rate = 0.5Hz }
+osc1 { wave = square, freq = pitch, level = 0.6, pw = 0.5 + lfo1 * 0.4 }
+```
+
+Here the compiler records the routing `lfo1 -> osc1.pw`. `pw = 50%` (percent
+unit) is accepted and means the same as `pw = 0.5`.
 
 ### 3.2 `noise`
 
@@ -470,9 +500,9 @@ Stack depth is bounded by the AST shape; the runtime stack is fixed at 64 slots.
 If a block is omitted, or a parameter is omitted, the following defaults apply:
 
 ```
-osc1   { wave = saw,    freq = pitch, level = 0.7 }
-osc2   { wave = saw,    freq = pitch, level = 0.0 }
-osc3   { wave = saw,    freq = pitch, level = 0.0 }
+osc1   { wave = saw,    freq = pitch, level = 0.7, pw = 0.5 }
+osc2   { wave = saw,    freq = pitch, level = 0.0, pw = 0.5 }
+osc3   { wave = saw,    freq = pitch, level = 0.0, pw = 0.5 }
 noise  { type = white, level = 0.0 }
 filter { type = lp, cutoff = 2000Hz, res = 0.2, env = 0, keytrack = 0 }
 ampEnv { a = 5ms,  d = 200ms, s = 0.7, r = 300ms }
